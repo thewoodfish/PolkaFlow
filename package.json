@@ -1,0 +1,20 @@
+{
+  "name": "polkaflow",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "contracts",
+    "frontend"
+  ],
+  "scripts": {
+    "test": "cd contracts && NODE_PATH=$(pwd)/node_modules npx hardhat test",
+    "compile": "cd contracts && npx hardhat compile",
+    "deploy:local": "cd contracts && NODE_PATH=$(pwd)/node_modules npx hardhat run ../scripts/deploy.ts --network localhost",
+    "deploy:paseo": "cd contracts && NODE_PATH=$(pwd)/node_modules npx hardhat run ../scripts/deploy.ts --network polkadot_hub_paseo",
+    "demo": "cd contracts && NODE_PATH=$(pwd)/node_modules npx hardhat run ../scripts/demo-flow.ts --network localhost",
+    "demo:paseo": "cd contracts && NODE_PATH=$(pwd)/node_modules npx hardhat run ../scripts/demo-flow.ts --network polkadot_hub_paseo",
+    "relayer": "cd contracts && NODE_PATH=$(pwd)/node_modules npx ts-node ../scripts/relayer.ts",
+    "relayer:paseo": "cd contracts && NODE_PATH=$(pwd)/node_modules NETWORK=paseo npx ts-node ../scripts/relayer.ts",
+    "dev": "npm run dev --workspace=frontend"
+  }
+}

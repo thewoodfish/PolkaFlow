@@ -1,0 +1,66 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    background-color: #1A1A2E;
+    color: #f0f0f0;
+    -webkit-font-smoothing: antialiased;
+  }
+  ::-webkit-scrollbar        { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track  { background: #1A1A2E; }
+  ::-webkit-scrollbar-thumb  { background: #552BBF; border-radius: 4px; }
+}
+
+@layer components {
+  /* ── Cards ──────────────────────────────────────── */
+  .card {
+    @apply bg-pk-card rounded-2xl border border-pk-purple/20 p-5;
+  }
+  .card-deep {
+    @apply bg-pk-deep rounded-xl border border-pk-purple/30 p-4;
+  }
+
+  /* ── Buttons ────────────────────────────────────── */
+  .btn-pk {
+    @apply bg-pk-pink hover:bg-pk-pink-dim text-white font-semibold
+           px-5 py-2.5 rounded-xl transition-all duration-200
+           disabled:opacity-40 disabled:cursor-not-allowed active:scale-95;
+  }
+  .btn-purple {
+    @apply bg-pk-purple hover:bg-pk-purple-dim text-white font-semibold
+           px-5 py-2.5 rounded-xl transition-all duration-200
+           disabled:opacity-40 disabled:cursor-not-allowed active:scale-95;
+  }
+  .btn-outline {
+    @apply border border-pk-pink text-pk-pink hover:bg-pk-pink/10
+           font-semibold px-5 py-2.5 rounded-xl transition-all duration-200
+           disabled:opacity-40 disabled:cursor-not-allowed;
+  }
+
+  /* ── Form ───────────────────────────────────────── */
+  .field {
+    @apply bg-pk-deep border border-pk-purple/40 rounded-xl
+           px-4 py-2.5 w-full text-white placeholder-gray-500
+           focus:outline-none focus:border-pk-pink focus:ring-1 focus:ring-pk-pink/40
+           transition-all duration-200;
+  }
+  .label {
+    @apply block text-xs font-medium text-gray-400 mb-1.5 uppercase tracking-wide;
+  }
+
+  /* ── Badges ─────────────────────────────────────── */
+  .badge-network {
+    @apply inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium
+           bg-pk-purple/20 text-pk-pink border border-pk-pink/25;
+  }
+  .badge-green  { @apply inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-900/30 text-green-400 border border-green-700/30; }
+  .badge-yellow { @apply inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-900/30 text-yellow-400 border border-yellow-700/30; }
+  .badge-purple { @apply inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-pk-purple/20 text-purple-300 border border-pk-purple/30; }
+
+  /* ── Spinner ────────────────────────────────────── */
+  .spinner {
+    @apply animate-spin h-4 w-4 rounded-full border-2 border-white/20 border-t-white;
+  }
+}
