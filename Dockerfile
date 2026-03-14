@@ -19,4 +19,4 @@ COPY frontend/src/deployments.json ./frontend/src/deployments.json
 
 ENV NETWORK=paseo
 
-CMD ["sh", "-c", "cd contracts && NODE_PATH=$(pwd)/../node_modules npx ts-node ../scripts/relayer.ts"]
+CMD ["sh", "-c", "cd contracts && NODE_PATH=$(pwd)/../node_modules npx ts-node --transpile-only ../scripts/relayer.ts"]
