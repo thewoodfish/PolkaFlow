@@ -1,125 +1,264 @@
-# PolkaFlow ⚡
+# PolkaFlow
 
-**Universal Payment & DeFi Settlement Engine**
-*Built on Polkadot Asset Hub EVM — EVM Smart Contract Track*
+**Universal Payment & DeFi Settlement Engine on Polkadot Asset Hub EVM**
 
-> "Accept any token. Settle in stablecoins. Earn yield automatically."
+> Accept any token. Settle in stablecoins. Earn yield — automatically.
+
+**[Live Demo](https://polka-flow-frontend.vercel.app)** | [Blockscout Explorer](https://blockscout-testnet.polkadot.io) | [Contracts Reference](./CONTRACTS.md)
 
 ---
 
 ## The Problem
 
-Blockchain payments are chain-locked and economically inefficient:
+Blockchain payments are broken in three ways:
 
-- **Token fragmentation** — merchants want USDC, customers hold DOT. Every cross-chain payment requires the customer to manually swap first, adding friction.
-- **Idle settlement funds** — once a payment lands, the USDC sits in a wallet earning nothing. There is no protocol-level equivalent of a merchant acquirer auto-investing float.
-- **Manual settlement** — existing demo-grade payment dApps require a privileged account to manually trigger settlement, making them unsuitable for real use.
+**1. Token fragmentation.** Merchants want USDC. Customers hold DOT. Every cross-token payment requires the customer to manually swap first — adding friction, slippage risk, and failed UX before the invoice is even paid.
+
+**2. Idle float.** Once a payment lands in a merchant wallet, the USDC sits earning nothing. Traditional payment processors automatically invest float. DeFi merchants have no equivalent.
+
+**3. Privileged settlement.** Existing demo-grade payment dApps require a trusted, manually-operated account to trigger settlement. That's not permissionless — it's just a backend with extra steps.
 
 ---
 
 ## The Solution
 
-PolkaFlow is a Solidity payment router on **Polkadot Asset Hub EVM (Paseo)** that solves all three problems:
+PolkaFlow is a production-grade Solidity payment engine deployed on **Polkadot Asset Hub EVM (Paseo testnet)** that solves all three:
 
-1. **Accept any ERC20 token** — customers pay with DOT (or any token). The router locks it and an on-chain AMM swap converts it to USDC automatically.
-2. **Permissionless settlement** — anyone (including an automated relayer) can call `swapAndSettle()`. No privileged account required.
-3. **Auto-vault DeFi loop** — with one flag at invoice creation (`autoVault: true`), settled USDC is deposited atomically into `PolkaFlowVault`, earning **5% APY**. The merchant withdraws more than they received.
+| Problem | PolkaFlow's answer |
+|---|---|
+| Token fragmentation | Customers pay with any ERC20 (DOT, WWPAS, etc.). The router locks it and an on-chain AMM swap converts it to USDC atomically. Merchant always receives USDC. |
+| Idle float | One flag at invoice creation (`autoVault: true`) routes settled USDC directly into `PolkaFlowVault`, minting yield-bearing shares to the merchant in the same transaction. No extra step. |
+| Privileged settlement | `swapAndSettle()` has zero access control. Any account can call it. The relayer is automation, not a gatekeeper. |
 
 ---
 
-## Architecture
+## Live Demo
+
+**Frontend:** [https://polka-flow-frontend.vercel.app](https://polka-flow-frontend.vercel.app)
+
+**Relayer:** Deployed on Railway — continuously watching for `PaymentInitiated` events on Paseo and calling `swapAndSettle()` automatically.
+
+**Try it in 60 seconds:**
+
+1. Install MetaMask → visit the demo → click **Connect MetaMask** (Paseo chain is auto-added)
+2. Get free PAS from [faucet.polkadot.io](https://faucet.polkadot.io) to cover gas
+3. Use the **Merchant tab** to mint MockUSDC/MockDOT and create an invoice
+4. Switch to the **Customer tab**, paste the payment ID, pay with DOT
+5. Watch the relayer auto-settle on-chain and the UI update in real time — no refresh
+
+---
+
+## How It Works
+
+### Payment Paths
 
 ```
   ┌─────────────┐
   │  Customer   │  holds DOT / USDC / any ERC20
   └──────┬──────┘
-         │  payWithToken(DOT)  or  payWithStablecoin(USDC)
-         ▼
-  ┌──────────────────────┐
-  │   PolkaFlowRouter    │  Solidity · Polkadot Asset Hub EVM
-  │   ──────────────────  │
-  │   • Creates invoice  │
-  │   • Locks token      │
-  │   • Emits event      │
-  └──────┬───────────────┘
-         │  PaymentInitiated event
-         ▼
-  ┌──────────────────────┐
-  │   PolkaFlow Relayer  │  Node.js · watches events · permissionless
-  │   (or anyone)        │
-  └──────┬───────────────┘
-         │  swapAndSettle(paymentId, minUsdcOut, deadline)
-         ▼
-  ┌──────────────────────┐
-  │   SimpleDEX          │  Constant-product AMM (x*y=k) · 0.3% fee
-  │   IDexAdapter        │  Pluggable — swap for ink!/pallet-asset-conversion
-  └──────┬───────────────┘
-         │  net USDC (after 0.3% protocol fee)
-         ▼
-  ┌─────────────┐        ┌──────────────────────┐
-  │  Merchant   │  -OR-  │   PolkaFlowVault      │
-  │  Wallet     │        │   ERC4626-lite · 5%APY│
-  │  (direct)   │        │   (autoVault=true)    │
-  └─────────────┘        └──────────────────────┘
+         │
+         ├─── PATH A: payWithStablecoin(id, USDC, amount) ──────────────────┐
+         │                                                                    │
+         └─── PATH B: payWithToken(id, DOT, amount) ──┐                     │
+                                                       │                     │
+                                                       ▼                     │
+                                              PaymentInitiated event         │
+                                                       │                     │
+                                                       ▼                     │
+                                          ┌────────────────────┐             │
+                                          │  Relayer / anyone  │             │
+                                          │  swapAndSettle()   │             │
+                                          └────────┬───────────┘             │
+                                                   │                         │
+                                                   ▼                         │
+                                          ┌────────────────────┐             │
+                                          │     SimpleDEX      │             │
+                                          │   x*y=k · 0.3%     │             │
+                                          └────────┬───────────┘             │
+                                                   │ USDC out                │
+                                                   └──────────────┬──────────┘
+                                                                  │
+                                                    net USDC (after 0.3% protocol fee)
+                                                                  │
+                                         ┌────────────────────────┴──────────────────┐
+                                         │                                           │
+                                         ▼  (autoVault = false)     (autoVault = true) ▼
+                                   ┌───────────┐                        ┌──────────────────────┐
+                                   │  Merchant │                        │   PolkaFlowVault     │
+                                   │  Wallet   │                        │   ERC4626-lite       │
+                                   └───────────┘                        │   5% APY · shares    │
+                                                                        └──────────────────────┘
 ```
 
-**Two settlement paths:**
+### Smart Contracts
 
-| Path | Flow | Settled by |
-|------|------|------------|
-| PATH A — Stablecoin | `payWithStablecoin(id, usdc, amount)` | Customer (single tx) |
-| PATH B — Any token | `payWithToken(id, dot, amount)` → relayer calls `swapAndSettle()` | Anyone (permissionless) |
+**`PolkaFlowRouter`** — The core payment engine.
+- Merchants create payment requests (direct USDC or auto-vault)
+- Customers lock any ERC20 token (`payWithToken`) or pay directly in stablecoin (`payWithStablecoin`)
+- Anyone — including the automated relayer — calls `swapAndSettle(paymentId, minUsdcOut, deadline)` to execute the DEX swap and finalize settlement in one transaction
+- 30 bps (0.3%) protocol fee on all settlements, configurable up to 10%, ownable fee recipient
+- `IDexAdapter` interface makes the DEX fully pluggable — swap SimpleDEX for Polkadot's native `pallet-asset-conversion` with a single `setDexAdapter()` call, no router redeployment
 
-**Pluggable DEX adapter (`IDexAdapter`):**
+**`SimpleDEX`** — A real, on-chain constant-product AMM.
+- Uniswap v2 formula: `x * y = k`
+- 0.3% swap fee (997/1000 multiplier)
+- Live pool on Paseo: **1,000 DOT / 5,000 USDC** (implied price: 1 DOT = 5 USDC)
+- Supports LP provisioning, removal, and swaps for any ERC20 pair
 
-The router never calls SimpleDEX directly — it calls the `IDexAdapter` interface. To upgrade from SimpleDEX to Polkadot's native `pallet-asset-conversion` AMM, the owner calls `setDexAdapter(inkBridgeAddress)` — no router redeployment needed.
+**`PolkaFlowVault`** — An ERC4626-lite yield vault.
+- Proportional share minting on deposit; burning on withdrawal
+- 5% APY accrual: `yield = principal × 5% × (elapsed / 365 days)`
+- `depositFor(beneficiary, amount)` — called atomically by the router during settlement so the merchant receives shares without ever touching the funds
+- Merchants withdraw shares at any time to receive principal + accumulated yield
+
+**`IDexAdapter`** — The pluggability interface.
+```solidity
+interface IDexAdapter {
+    function swap(address tokenIn, address tokenOut, uint256 amountIn,
+                  uint256 minAmountOut, address recipient) external returns (uint256);
+    function getQuote(address tokenIn, address tokenOut, uint256 amountIn)
+                  external view returns (uint256);
+}
+```
+Any contract implementing this interface can be registered with the router. The path to Polkadot's native AMM is one owner transaction away.
+
+**`WWPAS`** — Wrapped PAS (WETH pattern). Lets customers pay with the native gas token via standard ERC20 approval flow.
+
+### Relayer
+
+The relayer (`scripts/relayer.ts`) is a stateless Node.js process:
+
+1. Subscribes to `PaymentInitiated(paymentId, customer, tokenIn, amountIn)` events on the router
+2. For each event, fetches a quote: `router.getSwapQuote(tokenIn, amountIn)`
+3. Applies 1% slippage: `minOut = quote * 9900 / 10000`
+4. Calls `swapAndSettle(paymentId, minOut, now + 300s)`
+
+Because `swapAndSettle()` is permissionless, the relayer is just one possible caller. Any MEV bot, keeper network, or end-user could settle instead — the system doesn't depend on it.
+
+---
+
+## Settlement Math
+
+```
+Customer pays:   3 DOT
+DEX swap:        3 DOT → 20.00 USDC  (at 1 DOT = 5 USDC, less 0.3% DEX fee)
+Protocol fee:    20.00 × 0.30% = 0.06 USDC
+Net to merchant: 19.94 USDC
+
+If autoVault = true, after 30 days at 5% APY:
+  yield ≈ 19.94 × 0.05 × (30/365) ≈ $0.082
+  Claimable: 19.94 + 0.082 = $20.022 USDC
+```
 
 ---
 
 ## Live Deployment — Polkadot Asset Hub Paseo
 
-**Network:** Polkadot Asset Hub Paseo · Chain ID `420420417`
-
 | Contract | Address | Explorer |
 |---|---|---|
-| `PolkaFlowRouter` | `0xc30ADf3Cba57e9eB6B9f89Ad3a6722d18072Ac8c` | [Blockscout ↗](https://blockscout-testnet.polkadot.io/address/0xc30ADf3Cba57e9eB6B9f89Ad3a6722d18072Ac8c) |
-| `SimpleDEX` | `0xAD2085749859ED1FA007E003CBCd34F062297E4C` | [Blockscout ↗](https://blockscout-testnet.polkadot.io/address/0xAD2085749859ED1FA007E003CBCd34F062297E4C) |
-| `PolkaFlowVault` | `0x124cA7a7D92A89ceA5F41d095Cd14E10941F8636` | [Blockscout ↗](https://blockscout-testnet.polkadot.io/address/0x124cA7a7D92A89ceA5F41d095Cd14E10941F8636) |
-| `MockUSDC` | `0xF4bF0d92142F5C5780B5E6c5753b13118AF4A870` | [Blockscout ↗](https://blockscout-testnet.polkadot.io/address/0xF4bF0d92142F5C5780B5E6c5753b13118AF4A870) |
-| `MockDOT` | `0x5479585CEef22bB274C699E47254a583723DB2C2` | [Blockscout ↗](https://blockscout-testnet.polkadot.io/address/0x5479585CEef22bB274C699E47254a583723DB2C2) |
+| `PolkaFlowRouter` | `0xc30ADf3Cba57e9eB6B9f89Ad3a6722d18072Ac8c` | [View ↗](https://blockscout-testnet.polkadot.io/address/0xc30ADf3Cba57e9eB6B9f89Ad3a6722d18072Ac8c) |
+| `SimpleDEX` | `0xAD2085749859ED1FA007E003CBCd34F062297E4C` | [View ↗](https://blockscout-testnet.polkadot.io/address/0xAD2085749859ED1FA007E003CBCd34F062297E4C) |
+| `PolkaFlowVault` | `0x124cA7a7D92A89ceA5F41d095Cd14E10941F8636` | [View ↗](https://blockscout-testnet.polkadot.io/address/0x124cA7a7D92A89ceA5F41d095Cd14E10941F8636) |
+| `MockUSDC` | `0xF4bF0d92142F5C5780B5E6c5753b13118AF4A870` | [View ↗](https://blockscout-testnet.polkadot.io/address/0xF4bF0d92142F5C5780B5E6c5753b13118AF4A870) |
+| `MockDOT` | `0x5479585CEef22bB274C699E47254a583723DB2C2` | [View ↗](https://blockscout-testnet.polkadot.io/address/0x5479585CEef22bB274C699E47254a583723DB2C2) |
 
-**Live DEX pool:** 5,000 USDC / 1,000 DOT (implied price: 1 DOT = 5 USDC)
+**Network:** Polkadot Asset Hub Paseo · Chain ID `420420417`
 
-**Network config for MetaMask:**
+**Active liquidity pool:** 1,000 DOT / 5,000 USDC on SimpleDEX
+
+**MetaMask auto-config** — the frontend adds Paseo automatically on first connect. Manual config:
 
 | Field | Value |
 |---|---|
 | Network name | Polkadot Asset Hub Paseo |
-| Chain ID | `420420417` |
 | RPC URL | `https://eth-rpc-testnet.polkadot.io/` |
+| Chain ID | `420420417` |
 | Block explorer | `https://blockscout-testnet.polkadot.io` |
-| Native token | PAS (free from [faucet.polkadot.io](https://faucet.polkadot.io)) |
+| Native token | PAS |
 
-> MetaMask is auto-configured when you click "Connect MetaMask" in the frontend.
+---
+
+## Security
+
+- **`ReentrancyGuard`** on all state-modifying functions in `PolkaFlowRouter` and `PolkaFlowVault`
+- **`SafeERC20`** on all token transfers (handles non-standard ERC20 return values)
+- **`Ownable`** access control on admin functions (fee config, vault registration, DEX adapter)
+- **Slippage protection** — every swap enforces `minAmountOut` and a `deadline`
+- **Fee cap** — protocol fee hard-capped at 10% (1,000 bps) in the contract
+- **Payment ID uniqueness** — derived from `keccak256(merchant, amount, timestamp, block.prevrandao)` preventing pre-computation and ID collision
+- **Double-settlement prevention** — `settled` flag checked and set atomically before any token movement
 
 ---
 
 ## Tech Stack
 
-| Layer | Tech |
+| Layer | Technology |
 |---|---|
-| Smart Contracts | Solidity ^0.8.20 |
-| Contract Framework | Hardhat 2.22 + TypeScript |
+| Smart contracts | Solidity ^0.8.24 |
+| Contract framework | Hardhat 2.22 + TypeScript |
 | Libraries | OpenZeppelin v5 (`SafeERC20`, `Ownable`, `ReentrancyGuard`) |
-| Network | Polkadot Asset Hub EVM — Paseo testnet (chainId `420420417`) |
+| Network | Polkadot Asset Hub EVM — Paseo testnet (chain ID `420420417`) |
 | DEX | SimpleDEX — constant-product AMM (x\*y=k, Uniswap v2 formula) |
-| Token Standards | ERC20 (payments), ERC4626-lite (vault shares) |
-| Relayer | Node.js + ethers.js v6 — event-driven, permissionless |
-| Frontend | React 18 + Vite 5 + TypeScript |
-| Web3 | ethers.js v6 (`BrowserProvider`, `Contract`) |
-| Wallet | MetaMask (auto-adds Paseo chain) |
-| Styling | Tailwind CSS + custom Polkadot brand colours |
-| Tests | Hardhat + Mocha + Chai — 40 tests, 100% passing |
+| Relayer | Node.js + ethers.js v6 — event-driven, permissionless, deployed on Railway |
+| Frontend | React 18 + Vite 5 + TypeScript — deployed on Vercel |
+| Web3 | ethers.js v6 (`BrowserProvider`, event listeners) |
+| Wallet | MetaMask (Paseo chain auto-added on connect) |
+| Styling | Tailwind CSS + Polkadot brand palette |
+| Tests | Hardhat + Mocha + Chai — **40 tests, 100% passing** |
+
+---
+
+## Why Polkadot Asset Hub EVM?
+
+Polkadot Asset Hub is uniquely positioned for payment infrastructure:
+
+- **Native multi-asset support** — DOT, USDC, and custom assets coexist at the protocol level
+- **EVM compatibility** — full Solidity toolchain, MetaMask, ethers.js, Hardhat work out of the box
+- **Low fees** — negligible gas costs make micropayments viable
+- **`pallet-asset-conversion` path** — by upgrading the `IDexAdapter`, PolkaFlow can route through Polkadot's native on-chain AMM instead of SimpleDEX, accessing deeper liquidity with zero additional contract complexity
+
+The `IDexAdapter` interface was designed specifically with this migration in mind.
+
+---
+
+## Project Structure
+
+```
+polkaflow/
+├── contracts/
+│   ├── contracts/
+│   │   ├── PolkaFlowRouter.sol    Payment router — permissionless settlement
+│   │   ├── SimpleDEX.sol          Constant-product AMM — IDexAdapter impl
+│   │   ├── IDexAdapter.sol        Pluggable DEX interface
+│   │   ├── PolkaFlowVault.sol     ERC4626-lite yield vault (5% APY)
+│   │   ├── WWPAS.sol              Wrapped PAS (WETH pattern)
+│   │   ├── MockUSDC.sol           Test stablecoin (6 decimals)
+│   │   └── MockDOT.sol            Test DOT (18 decimals)
+│   └── hardhat.config.ts
+├── frontend/
+│   └── src/
+│       ├── components/
+│       │   ├── MerchantPanel.tsx  Invoice creation, vault dashboard, payment history
+│       │   ├── CustomerPanel.tsx  Pay by USDC or DOT, live settlement status
+│       │   ├── StatsBar.tsx       Live on-chain volume, fees, vault assets
+│       │   ├── FlowDiagram.tsx    Animated 5-step payment flow
+│       │   ├── ConnectWallet.tsx  MetaMask connector with Paseo auto-add
+│       │   └── ContractsModal.tsx Deployed addresses + Blockscout links
+│       ├── hooks/usePolkaFlow.ts  ethers.js provider + contract instances
+│       └── deployments.json      Written by deploy script, read by frontend
+├── scripts/
+│   ├── deploy.ts                  Deploy all contracts, seed pool, wire adapters
+│   ├── relayer.ts                 Event-driven permissionless settlement relayer
+│   └── demo-flow.ts               End-to-end CLI walkthrough
+├── test/
+│   ├── PolkaFlowRouter.test.ts    19 tests
+│   ├── PolkaFlowVault.test.ts     13 tests
+│   └── SimpleDEX.test.ts          8 tests
+├── CONTRACTS.md                   Full NatSpec reference + settlement math
+├── Dockerfile                     Relayer container (Railway deployment)
+├── railway.json                   Railway service config
+└── .env.example
+```
 
 ---
 
@@ -130,109 +269,90 @@ The router never calls SimpleDEX directly — it calls the `IDexAdapter` interfa
 - Node.js >= 18, npm >= 9
 - MetaMask browser extension
 
-### 1 — Clone and install
+### Run against live Paseo deployment
 
 ```bash
-git clone https://github.com/your-org/polkaflow.git
-cd polkaflow
+git clone https://github.com/thewoodfish/PolkaFlow.git
+cd PolkaFlow
 npm install
+
+# Start the relayer (watches Paseo for PaymentInitiated events)
+cp .env.example .env
+# Set RELAYER_PRIVATE_KEY in .env
+npm run relayer:paseo
+
+# Start the frontend
+npm run dev
+# → http://localhost:5173
 ```
 
-### 2 — Run tests
+### Run tests
 
 ```bash
 npm test
-# 40 tests passing — PolkaFlowRouter, PolkaFlowVault, SimpleDEX
+# 40 tests passing
 ```
 
-### 3 — Run against live Paseo deployment
+### Run locally (Hardhat node)
 
 ```bash
-# Terminal 1 — start the automated settlement relayer
-npm run relayer:paseo
-
-# Terminal 2 — start the frontend
-npm run dev
-# Opens http://localhost:5173
-```
-
-### 4 — Run locally (Hardhat node)
-
-```bash
-# Terminal 1
+# Terminal 1 — local chain
 cd contracts && npx hardhat node
 
-# Terminal 2
+# Terminal 2 — deploy + seed pool
 npm run deploy:local
 
-# Terminal 3
+# Terminal 3 — relayer
 npm run relayer
 
-# Terminal 4
+# Terminal 4 — frontend
 npm run dev
 ```
 
-### 5 — Deploy your own instance to Paseo
+### Deploy your own instance to Paseo
 
 ```bash
 cp .env.example .env
-# Set DEPLOYER_PRIVATE_KEY and RELAYER_PRIVATE_KEY in .env
+# Set DEPLOYER_PRIVATE_KEY and RELAYER_PRIVATE_KEY
 
 npm run deploy:paseo
-# Deploys all 5 contracts, seeds DOT/USDC pool, writes deployments.json
+# Deploys 5 contracts, seeds DOT/USDC pool, writes deployments.json to frontend/src/
 ```
 
 ---
 
 ## Demo Walkthrough
 
-1. **Merchant tab** — enter invoice amount, optionally toggle **Auto-deposit to Vault**, click **Create Request**, copy the payment ID.
-2. **Customer tab** — paste the payment ID, choose:
-   - **USDC** — single tx, settles immediately (PATH A)
-   - **DOT** — locks DOT in the router, emits `PaymentInitiated` (PATH B)
-3. **DOT path** — the relayer detects the event and automatically calls `swapAndSettle()`. The UI listens for the `PaymentSettled` event and updates in real time — no page refresh, no manual steps.
-4. Watch the **Flow Diagram** animate through each step and the **Stats Bar** update with live on-chain totals.
-5. **Merchant tab** — payment flips to *Settled* or *Vaulted* with the received USDC amount.
+### Merchant flow
 
----
+1. Open [the demo](https://polka-flow-frontend.vercel.app), connect MetaMask
+2. **Merchant tab** → mint some MockUSDC (for wallet balance display)
+3. Enter an invoice amount (e.g., `20`), optionally enable **Auto-deposit to Vault**
+4. Click **Create Payment Request** → copy the payment ID
 
-## Project Structure
+### Customer flow (PATH A — USDC)
 
-```
-polkaflow/
-├── contracts/
-│   ├── contracts/
-│   │   ├── PolkaFlowRouter.sol   Payment router · permissionless settlement
-│   │   ├── SimpleDEX.sol         Constant-product AMM · IDexAdapter impl
-│   │   ├── IDexAdapter.sol       Pluggable DEX interface
-│   │   ├── PolkaFlowVault.sol    ERC4626-lite yield vault (5% APY)
-│   │   ├── WWPAS.sol             Wrapped PAS (WETH pattern)
-│   │   ├── MockUSDC.sol          Test stablecoin (6 dec)
-│   │   └── MockDOT.sol           Test DOT token (18 dec)
-│   └── hardhat.config.ts
-├── frontend/
-│   └── src/
-│       ├── components/
-│       │   ├── CustomerPanel.tsx  DOT/USDC payment UI · auto-settles via event
-│       │   ├── MerchantPanel.tsx  Invoice creation · vault toggle
-│       │   ├── ConnectWallet.tsx  MetaMask · auto-adds Paseo chain
-│       │   ├── ContractsModal.tsx Deployed addresses · Blockscout links
-│       │   ├── StatsBar.tsx       Live on-chain stats
-│       │   └── FlowDiagram.tsx    Animated payment flow
-│       ├── hooks/usePolkaFlow.ts  ethers.js wallet + contract hook
-│       └── deployments.json      Written by deploy script
-├── scripts/
-│   ├── deploy.ts                 Deploys + seeds pool + wires contracts
-│   ├── relayer.ts                Event-driven settlement relayer
-│   └── demo-flow.ts              End-to-end CLI demo
-├── test/
-│   ├── PolkaFlowRouter.test.ts   19 tests
-│   ├── PolkaFlowVault.test.ts    13 tests
-│   └── SimpleDEX.test.ts         8 tests
-├── CONTRACTS.md                  Full NatSpec reference + math
-├── .env.example
-└── README.md
-```
+1. **Customer tab** → paste the payment ID
+2. Select **USDC** as payment token → click **Pay**
+3. Approve USDC spend → confirm payment tx
+4. Router deducts fee, settles net USDC to merchant (or vault) atomically
+5. `PaymentSettled` event updates both tabs in real time
+
+### Customer flow (PATH B — DOT)
+
+1. **Customer tab** → paste the payment ID
+2. Select **DOT**, enter amount (e.g., `3`)
+3. Approve DOT spend → click **Pay with DOT**
+4. Router emits `PaymentInitiated` — UI shows "Awaiting settlement..."
+5. Relayer picks up the event → calls `swapAndSettle()` on-chain (usually within seconds)
+6. `PaymentSettled` event fires → UI updates to "Done" with net USDC received
+
+### Vault flow
+
+1. Create invoice with **Auto-deposit to Vault** toggled on
+2. After settlement, go to **My Vault** in the Merchant tab
+3. See deposited shares, pending yield (5% APY), and claimable total
+4. Click **Withdraw** to redeem principal + yield
 
 ---
 
@@ -240,13 +360,13 @@ polkaflow/
 
 **EVM Smart Contract Track — DeFi & Stablecoin-enabled dApps**
 
-PolkaFlow is purpose-built for the Polkadot Hub EVM ecosystem:
+PolkaFlow directly addresses the track criteria:
 
-- **Real on-chain DEX** — `SimpleDEX` is a production-grade constant-product AMM (x\*y=k) deployed on Paseo with a live liquidity pool. This is not a mock or simulation.
-- **Permissionless settlement** — `swapAndSettle()` has no access control. Any account can trigger it, including the automated relayer. No privileged account required in the demo critical path.
-- **Pluggable DEX architecture** — `IDexAdapter` decouples the router from any specific AMM. The path to Polkadot's native `pallet-asset-conversion` is `setDexAdapter(inkBridgeAddress)` — one owner call, no redeployment.
-- **Stablecoin-first** — merchants always receive USDC regardless of what the customer paid with, eliminating volatility risk and enabling real commerce on Polkadot.
-- **DeFi composability** — the `autoVault` flag routes settled USDC atomically into an ERC4626-compatible vault, giving merchants yield on payment float.
+- **Real on-chain DEX** — `SimpleDEX` is a deployed constant-product AMM with a live liquidity pool on Paseo. Not a mock. Swaps execute on-chain with real reserves.
+- **Stablecoin-first** — merchants always receive USDC regardless of payment token, eliminating volatility risk and enabling real commerce on Polkadot.
+- **Permissionless settlement** — `swapAndSettle()` has no `onlyOwner` or `onlyRelayer` modifier. Anyone can call it. The automated relayer is a convenience, not a requirement.
+- **DeFi composability** — settled USDC routes atomically into an ERC4626-compatible vault. The merchant receives yield-bearing shares in the same settlement transaction.
+- **Polkadot-native upgrade path** — `IDexAdapter` decouples the router from any specific AMM. Upgrading to `pallet-asset-conversion` is a single owner call, no redeployment.
 
 ---
 
