@@ -19,4 +19,4 @@ COPY frontend/src/deployments.json ./frontend/src/deployments.json
 
 ENV NETWORK=paseo
 
-CMD ["sh", "-c", "cd contracts && NODE_PATH=$(pwd)/../node_modules npx ts-node --transpile-only --skip-project --compiler-options '{\"module\":\"commonjs\",\"esModuleInterop\":true,\"resolveJsonModule\":true}' ../scripts/relayer.ts"]
+CMD ["sh", "-c", "cd contracts && NODE_PATH=$(pwd)/node_modules:$(pwd)/../node_modules NETWORK=paseo npx ts-node --transpile-only --skip-project --compiler-options '{\"module\":\"commonjs\",\"esModuleInterop\":true,\"resolveJsonModule\":true}' ../scripts/relayer.ts"]

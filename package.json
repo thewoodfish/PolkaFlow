@@ -15,7 +15,7 @@
     "demo:paseo": "cd contracts && NODE_PATH=$(pwd)/node_modules npx hardhat run ../scripts/demo-flow.ts --network polkadot_hub_paseo",
     "relayer": "cd contracts && NODE_PATH=$(pwd)/node_modules npx ts-node ../scripts/relayer.ts",
     "relayer:paseo": "cd contracts && NODE_PATH=$(pwd)/node_modules NETWORK=paseo npx ts-node ../scripts/relayer.ts",
-    "start": "cd contracts && NODE_PATH=$(pwd)/../node_modules NETWORK=paseo npx ts-node --transpile-only --skip-project --compiler-options '{\"module\":\"commonjs\",\"esModuleInterop\":true,\"resolveJsonModule\":true}' ../scripts/relayer.ts",
+    "start": "cd contracts && NODE_PATH=$(pwd)/node_modules:$(pwd)/../node_modules NETWORK=paseo npx ts-node --transpile-only --skip-project --compiler-options '{\"module\":\"commonjs\",\"esModuleInterop\":true,\"resolveJsonModule\":true}' ../scripts/relayer.ts",
     "dev": "npm run dev --workspace=frontend"
   }
 }
