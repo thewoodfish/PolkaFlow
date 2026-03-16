@@ -46,6 +46,8 @@ export function MerchantPanel({ contracts, account, onStepChange }: Props) {
   const [copiedId,   setCopiedId]   = useState<string | null>(null);
   const [vault,      setVaultInfo]  = useState<VaultInfo | null>(null);
   const [withdrawing,setWithdrawing]= useState(false);
+  const [minting,    setMinting]    = useState(false);
+  const [mintDone,   setMintDone]   = useState(false);
 
   // ── Vault info ────────────────────────────────────────────────────────────
   const refreshVault = useCallback(async () => {
@@ -111,6 +113,18 @@ export function MerchantPanel({ contracts, account, onStepChange }: Props) {
     return () => clearInterval(id);
   }, [contracts, account, refreshVault, onStepChange]);
 
+  // ── Mint test tokens ──────────────────────────────────────────────────────
+  const mintTokens = async () => {
+    if (!contracts || !account) return;
+    setMinting(true);
+    try {
+      const tx = await contracts.usdc.mint(account, ethers.parseUnits("1000", 6), { gasLimit: 100_000 });
+      await tx.wait();
+      setMintDone(true);
+    } catch {}
+    finally { setMinting(false); }
+  };
+
   // ── Create request ────────────────────────────────────────────────────────
   const createRequest = async () => {
     if (!contracts || !amount) return;
@@ -162,6 +176,23 @@ export function MerchantPanel({ contracts, account, onStepChange }: Props) {
 
   return (
     <div className="space-y-5 animate-fade-in">
+
+      {/* ── Get test tokens ────────────────────────────────────────────── */}
+      <div className="card border-pk-purple/30">
+        <h2 className="text-base font-bold text-white mb-1 flex items-center gap-2">
+          <span>🪙</span> Get Test Tokens
+        </h2>
+        <p className="text-xs text-gray-500 mb-3">Mint 1,000 MockUSDC to your wallet for testing.</p>
+        <button
+          onClick={mintTokens}
+          disabled={minting || !contracts || mintDone}
+          className="btn-outline w-full"
+        >
+          {minting  ? <><span className="spinner inline-block" /> Minting…</> :
+           mintDone ? "✓ Tokens minted" :
+           "Mint Test USDC →"}
+        </button>
+      </div>
 
       {/* ── Create Request ─────────────────────────────────────────────── */}
       <div className="card">

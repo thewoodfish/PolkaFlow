@@ -41,6 +41,8 @@ export function CustomerPanel({ contracts, account, onStepChange }: Props) {
   const [status,    setStatus]    = useState<Status>("idle");
   const [txHash,    setTxHash]    = useState<string | null>(null);
   const [txError,   setTxError]   = useState<string | null>(null);
+  const [minting,   setMinting]   = useState(false);
+  const [mintDone,  setMintDone]  = useState(false);
 
   // ── Auto-load payment request info ───────────────────────────────────────
   useEffect(() => {
@@ -136,11 +138,42 @@ export function CustomerPanel({ contracts, account, onStepChange }: Props) {
     }
   };
 
+  const mintTokens = async () => {
+    if (!contracts || !account) return;
+    setMinting(true);
+    try {
+      const usdcTx = await contracts.usdc.mint(account, ethers.parseUnits("1000", 6),  { gasLimit: 100_000 });
+      await usdcTx.wait();
+      const dotTx  = await contracts.dot.mint(account,  ethers.parseEther("100"),       { gasLimit: 100_000 });
+      await dotTx.wait();
+      setMintDone(true);
+    } catch {}
+    finally { setMinting(false); }
+  };
+
   const banner = statusBanner(status);
   const busy   = status === "approving" || status === "paying";
 
   return (
     <div className="space-y-5 animate-fade-in">
+
+      {/* ── Get test tokens ─────────────────────────────────────────────── */}
+      <div className="card border-pk-purple/30">
+        <h2 className="text-base font-bold text-white mb-1 flex items-center gap-2">
+          <span>🪙</span> Get Test Tokens
+        </h2>
+        <p className="text-xs text-gray-500 mb-3">Mint 1,000 MockUSDC + 100 MockDOT to your wallet for testing.</p>
+        <button
+          onClick={mintTokens}
+          disabled={minting || !contracts || mintDone}
+          className="btn-outline w-full"
+        >
+          {minting  ? <><span className="spinner inline-block" /> Minting…</> :
+           mintDone ? "✓ Tokens minted" :
+           "Mint Test Tokens →"}
+        </button>
+      </div>
+
       <div className="card">
         <h2 className="text-base font-bold text-white mb-4 flex items-center gap-2">
           <span>💳</span> Pay an Invoice
