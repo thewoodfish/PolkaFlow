@@ -410,4 +410,4 @@ PolkaFlow directly addresses the track criteria:
 
 ## License
 
-MIT
+Apache 2.0
