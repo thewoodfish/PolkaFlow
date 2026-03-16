@@ -93,11 +93,11 @@ export function CustomerPanel({ contracts, account, onStepChange }: Props) {
 
       if (token === "USDC") {
         setStatus("approving");
-        await (await contracts.usdc.approve(await contracts.router.getAddress(), usdcAmt)).wait();
+        await (await contracts.usdc.approve(await contracts.router.getAddress(), usdcAmt, { gasLimit: 100_000 })).wait();
 
         setStatus("paying");
         const payTx  = await contracts.router.payWithStablecoin(
-          paymentId, await contracts.usdc.getAddress(), usdcAmt,
+          paymentId, await contracts.usdc.getAddress(), usdcAmt, { gasLimit: 300_000 },
         );
         const receipt = await payTx.wait();
         setTxHash(receipt?.hash ?? null);
@@ -109,11 +109,11 @@ export function CustomerPanel({ contracts, account, onStepChange }: Props) {
         const dotBig = ethers.parseEther(dotAmount || "3");
 
         setStatus("approving");
-        await (await contracts.dot.approve(await contracts.router.getAddress(), dotBig)).wait();
+        await (await contracts.dot.approve(await contracts.router.getAddress(), dotBig, { gasLimit: 100_000 })).wait();
 
         setStatus("paying");
         const payTx  = await contracts.router.payWithToken(
-          paymentId, await contracts.dot.getAddress(), dotBig,
+          paymentId, await contracts.dot.getAddress(), dotBig, { gasLimit: 200_000 },
         );
         const receipt = await payTx.wait();
         setTxHash(receipt?.hash ?? null);

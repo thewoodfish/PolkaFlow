@@ -106,8 +106,8 @@ export function MerchantPanel({ contracts, account, onStepChange }: Props) {
     try {
       const amtBig = ethers.parseUnits(amount, 6);
       const tx = autoVault
-        ? await contracts.router.createPaymentRequestWithVault(amtBig, ethers.ZeroAddress, true)
-        : await contracts.router.createPaymentRequest(amtBig, ethers.ZeroAddress);
+        ? await contracts.router.createPaymentRequestWithVault(amtBig, ethers.ZeroAddress, true, { gasLimit: 300_000 })
+        : await contracts.router.createPaymentRequest(amtBig, ethers.ZeroAddress, { gasLimit: 300_000 });
 
       const receipt = await tx.wait();
       if (!receipt) throw new Error("No receipt");
@@ -138,7 +138,7 @@ export function MerchantPanel({ contracts, account, onStepChange }: Props) {
     if (!contracts || !vault || vault.shares === 0n) return;
     setWithdrawing(true);
     try {
-      const tx = await contracts.vault.withdraw(vault.shares);
+      const tx = await contracts.vault.withdraw(vault.shares, { gasLimit: 200_000 });
       await tx.wait();
       await refreshVault();
     } catch {}
