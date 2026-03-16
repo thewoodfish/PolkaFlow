@@ -1,3 +1,5 @@
+### PolkaFlow ###
+
 ## What We Built
 
 **PolkaFlow** is a permissionless payment and DeFi settlement engine deployed on Polkadot Asset Hub EVM (Paseo testnet). It lets merchants accept any ERC20 token and always receive USDC — with optional auto-deposit into a yield vault earning 5% APY.
@@ -55,6 +57,24 @@ Deployed on Vercel. Two panels — Merchant and Customer — with real-time sett
 ## Tests
 
 40 tests across three suites — `PolkaFlowRouter` (19), `PolkaFlowVault` (13), `SimpleDEX` (8) — all passing.
+
+---
+
+## OpenZeppelin Usage
+
+PolkaFlow uses OpenZeppelin v5 as a core dependency across two production contracts — not as a boilerplate token deployment, but as security-critical infrastructure composited into custom payment logic.
+
+| Library | Contract(s) | How it's used |
+|---|---|---|
+| `SafeERC20` | `PolkaFlowRouter`, `PolkaFlowVault` | Wraps every token transfer (`safeTransferFrom`, `safeTransfer`, `forceApprove`) to handle non-standard ERC20s that don't return `bool`. Critical for supporting arbitrary customer payment tokens. |
+| `ReentrancyGuard` | `PolkaFlowRouter`, `PolkaFlowVault` | Guards all state-modifying functions (`payWithStablecoin`, `payWithToken`, `swapAndSettle`, `deposit`, `withdraw`) against reentrancy attacks — essential given the contract holds user funds between PATH B initiation and settlement. |
+| `Ownable` | `PolkaFlowRouter`, `PolkaFlowVault` | Scopes admin functions: `setDexAdapter`, `setVault`, `withdrawFees`, `setFeesBps`, `setFeeRecipient`. Prevents unauthorized fee extraction or DEX adapter substitution. |
+
+**Why this is non-trivial:**
+
+- `SafeERC20.forceApprove` is used in `swapAndSettle()` to safely reset the DEX adapter's allowance before each swap — handling ERC20s that revert on non-zero→non-zero approval changes.
+- `ReentrancyGuard` protects a two-step payment flow (`payWithToken` → `swapAndSettle`) where the contract holds locked tokens between calls — a real reentrancy surface, not a theoretical one.
+- `Ownable` is composed with a pluggable adapter pattern: the owner can hot-swap the DEX (`setDexAdapter`) without redeploying the router, a capability that only makes sense with proper access control.
 
 ---
 
