@@ -27,8 +27,7 @@ export function StatsBar({ contracts }: Props) {
           contracts!.vault.totalAssets(),
           contracts!.router.queryFilter(
             contracts!.router.filters["PaymentSettled"](),
-            0,
-            "latest",
+            -2000,
           ),
         ]);
 

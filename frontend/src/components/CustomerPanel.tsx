@@ -66,21 +66,26 @@ export function CustomerPanel({ contracts, account, onStepChange }: Props) {
     return () => { active = false; };
   }, [contracts, paymentId]);
 
-  // ── Listen for PaymentSettled while awaiting relayer ─────────────────────
+  // ── Poll for PaymentSettled while awaiting relayer ───────────────────────
   useEffect(() => {
     if (!contracts || !paymentId || status !== "awaiting-settle") return;
 
-    // ethers v6: filter on indexed paymentId arg
-    const filter = contracts.router.filters["PaymentSettled(bytes32,address,uint256,uint256,uint256)"](paymentId);
+    const poll = async () => {
+      try {
+        const filter = contracts.router.filters["PaymentSettled"](paymentId);
+        const events = await contracts.router.queryFilter(filter, -2000);
+        if (events.length === 0) return;
 
-    const onSettled = (_pid: string, _merchant: string, _net: bigint, _fee: bigint, _vaulted: bigint, event: { log: { transactionHash: string } }) => {
-      setTxHash(event.log.transactionHash);
-      setStatus("done");
-      onStepChange(4);
+        const ev = events[events.length - 1];
+        setTxHash(ev.transactionHash);
+        setStatus("done");
+        onStepChange(4);
+      } catch {}
     };
 
-    contracts.router.on(filter, onSettled as (...args: unknown[]) => void);
-    return () => { contracts.router.off(filter, onSettled as (...args: unknown[]) => void); };
+    const id = setInterval(poll, 4_000);
+    poll();
+    return () => clearInterval(id);
   }, [contracts, paymentId, status, onStepChange]);
 
   // ── Pay ───────────────────────────────────────────────────────────────────

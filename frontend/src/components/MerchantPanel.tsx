@@ -70,32 +70,45 @@ export function MerchantPanel({ contracts, account, onStepChange }: Props) {
     return () => clearInterval(id);
   }, [refreshVault]);
 
-  // ── PaymentSettled event listener ─────────────────────────────────────────
+  // ── PaymentSettled polling (Paseo RPC doesn't support eth_newFilter) ────────
   useEffect(() => {
     if (!contracts || !account) return;
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const handler = (...args: any[]) => {
-      // ethers v6 passes individual decoded args + the event as last param
-      const paymentId    = args[0] as string;
-      const usdcAmount   = BigInt(args[2]);
-      const vaultedAmount= BigInt(args[4]);
-      const isVaulted    = vaultedAmount > 0n;
+    let lastBlock = 0;
 
-      setPayments(prev =>
-        prev.map(p =>
-          p.paymentId === paymentId
-            ? { ...p, status: isVaulted ? "vaulted" : "settled", settledAmount: ethers.formatUnits(usdcAmount, 6) }
-            : p,
-        ),
-      );
-      refreshVault();
-      onStepChange(isVaulted ? 5 : 4);
+    const poll = async () => {
+      try {
+        const filter = contracts.router.filters["PaymentSettled"](null, account);
+        const events = await contracts.router.queryFilter(filter, lastBlock || -2000);
+        if (events.length === 0) return;
+
+        const latest = events[events.length - 1];
+        lastBlock = latest.blockNumber + 1;
+
+        for (const ev of events) {
+          const parsed = contracts.router.interface.parseLog({ data: ev.data, topics: [...ev.topics] });
+          if (!parsed) continue;
+          const paymentId    = parsed.args.paymentId as string;
+          const usdcAmount   = BigInt(parsed.args.netAmount);
+          const vaultedAmount= BigInt(parsed.args.vaultedAmount);
+          const isVaulted    = vaultedAmount > 0n;
+
+          setPayments(prev =>
+            prev.map(p =>
+              p.paymentId === paymentId
+                ? { ...p, status: isVaulted ? "vaulted" : "settled", settledAmount: ethers.formatUnits(usdcAmount, 6) }
+                : p,
+            ),
+          );
+          onStepChange(isVaulted ? 5 : 4);
+        }
+        refreshVault();
+      } catch {}
     };
 
-    const filter = contracts.router.filters["PaymentSettled"](null, account);
-    contracts.router.on(filter, handler);
-    return () => { contracts.router.off(filter, handler); };
+    const id = setInterval(poll, 5_000);
+    poll();
+    return () => clearInterval(id);
   }, [contracts, account, refreshVault, onStepChange]);
 
   // ── Create request ────────────────────────────────────────────────────────
