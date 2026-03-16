@@ -356,6 +356,44 @@ npm run deploy:paseo
 
 ---
 
+## Vision & Roadmap
+
+PolkaFlow is built to be the payment layer of the Polkadot ecosystem — not a hackathon demo that stops here. Every architectural decision made during this sprint was made with production in mind.
+
+### The Big Idea
+
+Polkadot is uniquely positioned to solve the global payments problem. It has native multi-asset support, shared security, and XCM — a message-passing protocol that lets value move across 50+ parachains atomically. What it has lacked is a **merchant-facing payment primitive** that makes all of that invisible to the end user.
+
+PolkaFlow is that primitive. A merchant creates one invoice. A customer pays with whatever they hold — DOT, USDC, an LP token, a parachain-native asset. The protocol handles the rest. The merchant receives stablecoins and earns yield. They never think about tokens.
+
+### Near-term (v1.1 — next 3 months)
+
+| Feature | Status | Notes |
+|---|---|---|
+| `pallet-asset-conversion` adapter | Designed | `IDexAdapter` interface already in place — one deployment away |
+| Real yield via existing DeFi protocols | Planned | Replace book-entry 5% APY with actual on-chain yield sources |
+| Merchant SDK (JS/TS) | Planned | Drop-in library: `polkaflow.createInvoice(amount)` |
+| Invoice payment links | Planned | Shareable URLs that deep-link into the payment flow |
+| On-chain fee governance | Planned | Merchant DAOs can vote on protocol fee parameters |
+
+### Medium-term (v2 — 6–12 months)
+
+**XCM cross-chain payments.** Today PolkaFlow runs on Asset Hub EVM. The next leap is XCM integration: a customer on Moonbeam, Astar, or HydraDX sends a cross-chain message that triggers settlement on Asset Hub — still in one user action, still settling in USDC to the merchant. The `IDexAdapter` interface already accounts for this; the router does not need to change.
+
+**Native ink! hybrid.** Deploy a companion ink! contract that bridges to Polkadot's Substrate layer, enabling merchants to receive payments directly into Substrate accounts — not just EVM addresses. This removes the EVM requirement from the merchant side entirely.
+
+**Keeper network.** Replace the single relayer with a decentralized keeper network where any node can settle payments for a share of the protocol fee. Fully permissionless end-to-end.
+
+**Real-world merchant integration.** A WooCommerce / Shopify plugin that generates PolkaFlow payment requests at checkout. The customer sees a QR code; their mobile wallet submits the on-chain transaction; the merchant's ERP receives a webhook when `PaymentSettled` fires.
+
+### Why We'll Ship It
+
+The contracts are live on Paseo. The relayer is running. The frontend is deployed. This isn't a whitepaper — it's working software with 40 passing tests, a pluggable architecture, and zero hardcoded dependencies on any single component. Every piece was built to be replaced, upgraded, or extended.
+
+The team is committed to deploying on Polkadot Mainnet when Asset Hub EVM reaches production readiness. The migration path is: swap `MockUSDC` for Circle's native USDC on Asset Hub, point `IDexAdapter` at `pallet-asset-conversion`, and redeploy. The router, vault, and relayer are unchanged.
+
+---
+
 ## Hackathon Track
 
 **EVM Smart Contract Track — DeFi & Stablecoin-enabled dApps**
