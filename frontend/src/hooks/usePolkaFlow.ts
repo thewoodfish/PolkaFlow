@@ -90,16 +90,17 @@ export function usePolkaFlow(): UsePolkaFlowResult {
       const prov = new ethers.BrowserProvider(window.ethereum);
       await prov.send("eth_requestAccounts", []);
 
-      // Try switching to Polkadot Asset Hub Paseo; silently continue on localhost.
+      // Switch to Polkadot Asset Hub Paseo.
       try {
         await prov.send("wallet_switchEthereumChain", [{ chainId: HUB_PASEO_HEX }]);
       } catch (switchErr) {
         const code = (switchErr as { code?: number }).code;
         if (code === 4902) {
-          // Chain not yet added in MetaMask — add it.
+          // Chain not yet added — add it, then switch.
           await prov.send("wallet_addEthereumChain", [HUB_PASEO_PARAMS]);
+          await prov.send("wallet_switchEthereumChain", [{ chainId: HUB_PASEO_HEX }]);
         }
-        // code 4001 = user rejected switch → allow (localhost dev mode).
+        // code 4001 = user rejected → leave on current chain.
       }
 
       const signer  = await prov.getSigner();
