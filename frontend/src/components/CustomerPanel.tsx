@@ -97,13 +97,12 @@ export function CustomerPanel({ contracts, account, onStepChange }: Props) {
       const usdcAmt = ethers.parseUnits(payInfo?.amountUSDC ?? "20", 6);
 
       if (token === "USDC") {
-        const gasPrice = ethers.parseUnits("10", "gwei");
         setStatus("approving");
-        await (await contracts.usdc.approve(await contracts.router.getAddress(), usdcAmt, { gasLimit: 100_000, gasPrice })).wait();
+        await (await contracts.usdc.approve(await contracts.router.getAddress(), usdcAmt, { gasLimit: 100_000 })).wait();
 
         setStatus("paying");
         const payTx  = await contracts.router.payWithStablecoin(
-          paymentId, await contracts.usdc.getAddress(), usdcAmt, { gasLimit: 300_000, gasPrice },
+          paymentId, await contracts.usdc.getAddress(), usdcAmt, { gasLimit: 300_000 },
         );
         const receipt = await payTx.wait();
         setTxHash(receipt?.hash ?? null);
@@ -114,13 +113,12 @@ export function CustomerPanel({ contracts, account, onStepChange }: Props) {
         // DOT path — lock tokens, then relayer auto-settles
         const dotBig = ethers.parseEther(dotAmount || "3");
 
-        const gasPrice = ethers.parseUnits("10", "gwei");
         setStatus("approving");
-        await (await contracts.dot.approve(await contracts.router.getAddress(), dotBig, { gasLimit: 100_000, gasPrice })).wait();
+        await (await contracts.dot.approve(await contracts.router.getAddress(), dotBig, { gasLimit: 100_000 })).wait();
 
         setStatus("paying");
         const payTx  = await contracts.router.payWithToken(
-          paymentId, await contracts.dot.getAddress(), dotBig, { gasLimit: 200_000, gasPrice },
+          paymentId, await contracts.dot.getAddress(), dotBig, { gasLimit: 200_000 },
         );
         const receipt = await payTx.wait();
         setTxHash(receipt?.hash ?? null);
