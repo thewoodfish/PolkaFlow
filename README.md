@@ -178,6 +178,20 @@ If autoVault = true, after 30 days at 5% APY:
 
 ---
 
+## OpenZeppelin
+
+PolkaFlow uses **OpenZeppelin v5** as a core security dependency across both production contracts — not as a boilerplate token deployment, but composited into custom payment routing and vault logic.
+
+| Library | Contracts | Role |
+|---|---|---|
+| `SafeERC20` | Router, Vault | Wraps every token transfer. `forceApprove` handles non-standard ERC20s that revert on non-zero→non-zero allowance resets — critical when accepting arbitrary customer payment tokens and resetting DEX adapter allowances between swaps. |
+| `ReentrancyGuard` | Router, Vault | Guards all state-modifying functions. Non-optional: the router holds user funds between two separate transactions (`payWithToken` locks, `swapAndSettle` releases), creating a real reentrancy surface if a malicious ERC20 hook triggers re-entry. |
+| `Ownable` | Router, Vault | Scopes admin functions that would otherwise allow an attacker to substitute a malicious DEX adapter, redirect vault deposits, drain accumulated fees, or set the protocol fee to 100%. |
+
+Full breakdown of every OZ call site and the attack surface each one protects against: **[CONTRACTS.md → OpenZeppelin Library Usage](./CONTRACTS.md#3-openzeppelin-library-usage)**
+
+---
+
 ## Security
 
 - **`ReentrancyGuard`** on all state-modifying functions in `PolkaFlowRouter` and `PolkaFlowVault`

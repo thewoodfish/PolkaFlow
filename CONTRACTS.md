@@ -564,7 +564,59 @@ Folds `_pendingYield(user)` into `_principalOf[user]` and resets `_lastInteracti
 
 ---
 
-## 3. MockUSDC
+## 3. OpenZeppelin Library Usage
+
+PolkaFlow uses OpenZeppelin v5 as a core security dependency across both production contracts. The usage goes well beyond deploying an unmodified token — each library is composed into custom protocol logic.
+
+### `SafeERC20` — PolkaFlowRouter + PolkaFlowVault
+
+`SafeERC20` wraps every token transfer in the protocol. This is critical because PolkaFlow accepts **arbitrary ERC20 tokens** from customers — not just known stablecoins. Tokens that return no value on `transfer`, or revert on non-zero→non-zero `approve`, would break a naive implementation.
+
+Specific usages:
+
+| Call | Location | Why |
+|---|---|---|
+| `safeTransferFrom(customer → router, tokenIn)` | `payWithToken` | Pull arbitrary payment token from customer |
+| `safeTransferFrom(customer → router, stablecoin)` | `payWithStablecoin` | Pull stablecoin from customer |
+| `safeTransfer(merchant, netAmount)` | `_settle` | Push net USDC to merchant wallet |
+| `forceApprove(vault, netAmount)` | `_settle` (autoVault path) | Reset allowance before `depositFor` — handles tokens that revert on non-zero→non-zero approve |
+| `forceApprove(dexAdapter, amountIn)` | `swapAndSettle` | Reset DEX adapter allowance before each swap |
+| `safeTransferFrom(router → vault, amount)` | `PolkaFlowVault._deposit` | Pull USDC from router during `depositFor` |
+| `safeTransfer(user, usdcReturned)` | `PolkaFlowVault.withdraw` | Return USDC to withdrawing merchant |
+
+`forceApprove` in particular is a non-trivial OZ choice — standard `approve` from `address(0)` to non-zero works, but resetting from a prior non-zero allowance (which happens on repeated `swapAndSettle` calls) requires the force variant to avoid reverting on non-standard ERC20s.
+
+### `ReentrancyGuard` — PolkaFlowRouter + PolkaFlowVault
+
+Reentrancy protection is non-optional here because the router **holds user funds between two separate transactions**: `payWithToken` locks the token, and `swapAndSettle` (potentially called by a different account) releases it. Any attacker contract that implements a malicious ERC20 `transfer` hook could re-enter during the token pull in `payWithToken` or the USDC transfer in `_settle`.
+
+All state-modifying functions are guarded:
+
+| Function | Contract |
+|---|---|
+| `payWithStablecoin` | Router |
+| `payWithToken` | Router |
+| `swapAndSettle` | Router |
+| `withdrawFees` | Router |
+| `deposit` | Vault |
+| `depositFor` | Vault |
+| `withdraw` | Vault |
+
+### `Ownable` — PolkaFlowRouter + PolkaFlowVault
+
+`Ownable` gates the protocol's administrative surface — functions that could otherwise be exploited to drain fees, redirect settlement funds, or substitute a malicious DEX adapter:
+
+| Function | Risk without Ownable |
+|---|---|
+| `setDexAdapter(address)` | Attacker substitutes a DEX that sends swap output to themselves |
+| `setVault(address)` | Attacker redirects auto-vault deposits to a contract they control |
+| `withdrawFees(token)` | Anyone could drain accumulated protocol fees |
+| `setFeesBps(uint256)` | Fee could be set to 100% (10,000 bps), stealing all merchant payments |
+| `setFeeRecipient(address)` | Fee recipient redirected to attacker |
+
+---
+
+## 4. MockUSDC
 
 ```
 contracts/contracts/MockUSDC.sol
